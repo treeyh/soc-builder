@@ -52,7 +52,7 @@
 
   <dialog id="modalDialog" class="modal">
     <div class="modal-box">
-      <h3 class="text-lg font-bold">消息</h3>
+      <h3 id="modalTitle" class="text-lg font-bold">消息</h3>
       <p id="modalInfo" class="py-4"></p>
     </div>
     <form method="dialog" class="modal-backdrop">
@@ -106,7 +106,8 @@
     }
 
     // 展示提示
-    function showModalMsg(msg) {
+    function showModalMsg(msg, title = '提示') {
+      $("#modalTitle").text(title);
       $("#modalInfo").text(msg);
       modalDialog.showModal();
     }
@@ -291,7 +292,7 @@
           if (set.type === 'TemplateSet') {
             const $li = $(`
               <li>
-                <button class="w-full text-left px-2 py-1 rounded break-words hover:bg-blue-100" id="${set.fullCode}" onclick="switchToSet('${group.code}', '${set.code}')">
+                <button class="w-full text-left px-2 py-1 rounded break-words hover:bg-gray-200" id="set-${set.fullCode}" onclick="switchToSet('${group.code}', '${set.code}')">
                   ${set.name}
                 </button>
               </li>
@@ -310,7 +311,11 @@
       const set = group.groups.find(s => s.code === setCode);
       if (!set) return;
 
+      if (currentSet) {
+        $(`#set-${currentSet.fullCode}`).removeClass('bg-gray-100');
+      }
       currentSet = set;
+      $(`#set-${currentSet.fullCode}`).addClass('bg-gray-100');
       generateContent(set);
     }
 
@@ -404,7 +409,7 @@
             </div>
           </div>
           <p class="list-col-wrap bg-gray-100 p-2 rounded"><code id="template-${itemId}" data-template="${processedTemplate}">${showTemplate}</code></p>
-          <button class="btn btn-soft btn-primary" id="btn-${itemId}" onclick="generateResult('${itemId}')">生成</button>
+          <button class="btn btn-soft btn-accent" id="btn-${itemId}" onclick="generateResult('${itemId}')">生成</button>
         </li>
       `);
     }
@@ -515,10 +520,10 @@
 
       // 显示生成的SQL
       if (!result) {
-        showModalMsg('复制内容失败，生成的内容:   ' + content);
+        showModalMsg(content, '复制内容失败，生成的内容');
         return;
       }
-      showModalMsg('复制内容成功，生成的内容:   ' + content);
+      showModalMsg(content, '复制内容成功，生成的内容');
     }
 
     // 全局函数，供HTML调用
