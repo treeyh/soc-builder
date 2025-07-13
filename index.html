@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>云海代码生成器</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <style type="text/css">
+    a:hover {
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body class="flex flex-col min-h-screen bg-gray-50">
+  <!-- 顶部菜单栏 -->
+  <header class="shadow-sm">
+    <div class="navbar bg-base-100 shadow-sm">
+      <div class="text-lg font-bold mr-8">云海代码生成器</div>
+      <nav class="flex space-x-7 text-sm relative" id="top-nav">
+        <!-- 顶部菜单将由JS动态渲染 -->
+      </nav>
+    </div>
+  </header>
+
+  <!-- 主体内容 -->
+  <main class="flex flex-1 container mx-auto px-2 py-2">
+    <!-- 左侧菜单栏 -->
+    <aside class="w-45 mr-4">
+      <div class="bg-white rounded-sm shadow-sm p-2" style="max-height: calc(100vh - 7rem); overflow-y: auto;">
+        <ul id="side-menu" class="space-y-1 text-sm">
+          <!-- 左侧菜单项将由JS动态渲染 -->
+        </ul>
+      </div>
+    </aside>
+    <!-- 右侧内容区 -->
+    <section class="flex-1 bg-white rounded-sm shadow-sm p-4 min-h-[200px] text-sm" style="max-height: calc(100vh - 7rem); overflow-y: auto;">
+      <div id="content-area">
+        <!-- 内容区域将由JS动态渲染 -->
+      </div>
+    </section>
+  </main>
+
+  <!-- 页脚 -->
+  <footer class="bg-gray-800 text-gray-200 py-2">
+    <div class="container mx-auto text-center text-xs">
+      &copy; 2024 模板构建器. 保留所有权利。
+    </div>
+  </footer>
+
+  <dialog id="modalDialog" class="modal">
+    <div class="modal-box">
+      <h3 class="text-lg font-bold">消息</h3>
+      <p id="modalInfo" class="py-4"></p>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+      <button>close</button>
+    </form>
+  </dialog>
+  
+  <script>
+    // 全局常量
+    const GROUP_MAP_kEY = 'groupMap';
+    const FRAGMENT_MAP_kEY = 'fragmentMap';
+    const CODE_SPAN = '-';
+
+    // 全局变量
+    let templateData = null;
+    let currentSeries = null;
+    let currentGroup = null;
+    let currentSet = null;
+    let currentItem = null;
+    let fragments = {};
+    
+    let seriesMap = {};
+    let groupMap = {};
+    let setMap = {};
+    let itemMap = {};
+    let fragmentMap = {};
+
+
+    // 页面加载时获取模板数据
+    $(document).ready(function() {
+      loadTemplateData();
+    });
+
+    // 加载模板数据
+    async function loadTemplateData() {
+      try {
+        const response = await fetch('assets/resources/template.json');
+        templateData = await response.json();
+        
+        // 处理 Template - 从TemplateGroup级别收集
+        if(!collectTemplate()) {
+          return false;
+        }
+        
+        // 生成页面结构
+        generatePageStructure();
+      } catch (error) {
+        console.error('加载模板数据失败:', error);
+        showModalMsg('加载模板数据失败');
+      }
+    }
+
+    // 展示提示
+    function showModalMsg(msg) {
+      $("#modalInfo").text(msg);
+      modalDialog.showModal();
+    }
+
+    // 收集所有 Template信息
+    function collectTemplate() {
+      if (templateData.groups) {
+        templateData.groups.forEach(series => {
+          if(!collectInfo(seriesMap, series, '')) {
+            return false;
+          }
+          if (series.groups) {
+            series.fullCode = series.code;
+            series.groups.forEach(group => {
+              if(!collectInfo(groupMap, group, series.fullCode)) {
+                return false;
+              }
+              if (group.groups) {
+                group.fullCode = series.fullCode + CODE_SPAN + group.code;
+                group.groups.forEach(set => {
+                  if(!collectInfo(setMap, set, group.fullCode)) {
+                    return false;
+                  }
+                  if (set.groups) {
+                    set.fullCode = group.fullCode + CODE_SPAN + set.code;
+                    set.groups.forEach(item => {
+                      item.fullCode = set.fullCode + CODE_SPAN + item.code;
+                      if(!collectInfo(itemMap, item, set.fullCode)) {
+                        return false;
+                      }
+                    });
+                  }
+                });
+              }
+            });
+          }
+        });
+      }
+      return true;
+    }
+
+    // 校验template对象信息
+    function verifyTemplate(obj, fragmentFlag = false) {
+      var code = obj.code;
+      if (!obj.hasOwnProperty('code') || code.trim() === '' || code.includes(CODE_SPAN)) {
+        showModalMsg('对象缺少code属性或者code属性不能包含“'+CODE_SPAN+'” ' + JSON.stringify(obj));
+        return false;
+      }
+      if (fragmentFlag) {
+        return true;
+      }
+      if (!obj.hasOwnProperty('type')) {
+        showModalMsg('对象缺少type属性, ' + JSON.stringify(obj));
+        return false;
+      }
+
+      var type = obj.type;
+      if (type != 'TemplateSeries' && type != 'TemplateGroup' && type != 'TemplateSet' && type != 'TemplateItem') {
+        showModalMsg('对象type需要是 TemplateSeries，TemplateGroup，TemplateSet，TemplateItem中的一个  ' + JSON.stringify(obj));
+        return false;
+      }
+      return true;
+    }
+
+    // 整理template
+    function collectInfo(parentObj, obj, preCode) {      
+      if (!verifyTemplate(obj)) {
+        return false;
+      }
+      obj.fullCode = preCode + CODE_SPAN + obj.code.trim();
+      if (parentObj.hasOwnProperty(obj.fullCode)) {
+        showModalMsg('code为 【' + obj.code + '】 的'+ obj.type +'已存在');
+        return false;
+      }
+      parentObj[obj.fullCode] = obj;
+
+      if (obj.hasOwnProperty('fragments')) {
+        obj.fragments.forEach(fragment => {
+          fragment.fullCode = preCode + CODE_SPAN + fragment.code.trim();
+          fragmentMap[fragment.fullCode] = fragment;
+        });
+      }
+      return true;
+    }
+
+    // 生成页面结构
+    function generatePageStructure() {
+      generateTopNav();
+      if (templateData.groups && templateData.groups.length > 0) {
+        const firstSeries = templateData.groups[0];
+        switchToSeries(firstSeries);
+      }
+    }
+
+    // 生成顶部导航
+    function generateTopNav() {
+      const $topNav = $('#top-nav');
+      $topNav.empty();
+
+      templateData.groups.forEach(series => {
+        if (series.type === 'TemplateSeries') {
+          const $navItem = $(`
+            <div class="relative inline-block">
+              <a class="btn btn-ghost text-lg hover:underline focus:outline-none" id="${series.fullCode}">${series.name}</a>
+              <div id="dropdown-${series.code}" class="absolute left-0 top-full mt-1 hidden bg-white text-gray-800 rounded shadow z-10 min-w-[640px] p-3 flex-col">
+                <div class="grid grid-cols-5 gap-2 overflow-y-auto" style="max-height: 17.5rem;">
+                  ${generateGroupButtons(series)}
+                </div>
+              </div>
+            </div>
+          `);
+          $topNav.append($navItem);
+        }
+      });
+
+      // 绑定下拉菜单事件
+      bindDropdownEvents();
+    }
+
+    // 生成组按钮
+    function generateGroupButtons(series) {
+      let buttons = '';
+      if (series.groups) {
+        series.groups.forEach(group => {
+          if (group.type === 'TemplateGroup') {
+            buttons += `<button class="block w-full text-left px-2 py-3 hover:bg-blue-100 rounded text-sm break-words whitespace-normal" id="${group.fullCode}" onclick="switchToGroup('${series.code}', '${group.code}')">${group.name}</button>`;
+          }
+        });
+      }
+      return buttons;
+    }
+
+    // 绑定下拉菜单事件
+    function bindDropdownEvents() {
+      let hideTimers = {};
+      $("[id^='dropdown-']").parent().on('mouseenter', function() {
+        const $dropdown = $(this).find("[id^='dropdown-']");
+        clearTimeout(hideTimers[$dropdown.attr('id')]);
+        $dropdown.removeClass('hidden');
+      }).on('mouseleave', function() {
+        const $dropdown = $(this).find("[id^='dropdown-']");
+        const id = $dropdown.attr('id');
+        hideTimers[id] = setTimeout(() => {
+          $dropdown.addClass('hidden');
+        }, 180);
+      });
+    }
+
+    // 切换到系列
+    function switchToSeries(series) {
+      currentSeries = series;
+      if (series.groups && series.groups.length > 0) {
+        const firstGroup = series.groups[0];
+        switchToGroup(series.code, firstGroup.code);
+      }
+    }
+
+    // 切换到组
+    function switchToGroup(seriesCode, groupCode) {
+      const series = templateData.groups.find(s => s.code === seriesCode);
+      if (!series) return;
+
+      const group = series.groups.find(g => g.code === groupCode);
+      if (!group) return;
+
+      currentGroup = group;
+      generateSideMenu(group);
+      
+      if (group.groups && group.groups.length > 0) {
+        const firstSet = group.groups[0];
+        switchToSet(group.code, firstSet.code);
+      }
+    }
+
+    // 生成侧边菜单
+    function generateSideMenu(group) {
+      const $sideMenu = $('#side-menu');
+      $sideMenu.empty();
+
+      if (group.groups) {
+        group.groups.forEach(set => {
+          if (set.type === 'TemplateSet') {
+            const $li = $(`
+              <li>
+                <button class="w-full text-left px-2 py-1 rounded break-words hover:bg-blue-100" id="${set.fullCode}" onclick="switchToSet('${group.code}', '${set.code}')">
+                  ${set.name}
+                </button>
+              </li>
+            `);
+            $sideMenu.append($li);
+          }
+        });
+      }
+    }
+
+    // 切换到集合
+    function switchToSet(groupCode, setCode) {
+      const group = currentGroup;
+      if (!group) return;
+
+      const set = group.groups.find(s => s.code === setCode);
+      if (!set) return;
+
+      currentSet = set;
+      generateContent(set);
+    }
+
+    // 生成内容区域
+    function generateContent(set) {
+      const $contentArea = $('#content-area');
+      $contentArea.empty();
+
+      // 生成面包屑
+      const breadcrumbs = generateBreadcrumbs();
+      $contentArea.append(breadcrumbs);
+
+      // 生成内容列表
+      if (set.groups) {
+        const $list = $('<ul class="list bg-base-100 rounded-box shadow-md"></ul>');
+        
+        set.groups.forEach((item, index) => {
+          if (item.type === 'TemplateItem') {
+            const $listItem = generateListItem(item, index + 1);
+            $list.append($listItem);
+          }
+        });
+        
+        $contentArea.append($list);
+      }
+    }
+
+    // 生成面包屑
+    function generateBreadcrumbs() {
+      const breadcrumbItems = [];
+      
+      if (currentSeries) {
+        breadcrumbItems.push(`<li><a>${currentSeries.name}</a></li>`);
+      }
+      
+      if (currentGroup) {
+        breadcrumbItems.push(`<li><a>${currentGroup.name}</a></li>`);
+      }
+      
+      if (currentSet) {
+        breadcrumbItems.push(`<li>${currentSet.name}</li>`);
+      }
+
+      return $(`
+        <div class="breadcrumbs text-sm text-lg font-semibold mb-2">
+          <ul>
+            ${breadcrumbItems.join('')}
+          </ul>
+        </div>
+      `);
+    }
+
+    // 生成列表项
+    function generateListItem(item, index) {
+      const itemId = item.fullCode;
+      const template = item.content?.template || '';
+      var params = item.content?.params || [];
+
+      // 处理模板中的片段引用
+      let processedTemplate = template;
+      const fragmentMatches = template.match(/{#([^#}]+)#}/g);
+      if (fragmentMatches) {
+        fragmentMatches.forEach(match => {
+          var [t, ps] = replaceFragment(item, match, processedTemplate);
+          processedTemplate = t;
+          params.push(...ps);
+        });
+      }
+
+      processedTemplate = removePlaceholderSpaces(processedTemplate);
+      params = buildInputParams(processedTemplate, params);
+      showTemplate = wrapPlaceholders(processedTemplate, '<span class="bg-cyan-200">', '</span>');
+
+      // 生成参数输入框
+      const paramInputs = params.map(param => `
+        <div style="all:unset;display:block;" class="pt-2">
+          <label class="floating-label">
+            <input type="text" placeholder="${param.name || params.code}" class="input input-sm input-info" data-param="${param.code}" />
+            <span>${param.name || params.code}</span>
+          </label>
+        </div>
+      `).join('');
+
+      return $(`
+        <li class="list-row">
+          <div class="text-4xl font-thin opacity-30 tabular-nums">${String(index).padStart(2, '0')}</div>
+          <div>
+            <div class="mb-1">${item.name}</div>
+            <div class="grid grid-cols-3 gap-2" style="isolation:isolate;" id="input-${itemId}">
+              ${paramInputs}
+            </div>
+          </div>
+          <p class="list-col-wrap bg-gray-100 p-2 rounded"><code id="template-${itemId}" data-template="${processedTemplate}">${showTemplate}</code></p>
+          <button class="btn btn-soft btn-primary" id="btn-${itemId}" onclick="generateResult('${itemId}')">生成</button>
+        </li>
+      `);
+    }
+
+    // 去除占位符中的空格
+    function removePlaceholderSpaces(text) {
+      // 使用正则表达式匹配 {{ ... }} 占位符，并去除空格
+      const regex = /\{\{\s*([^\}]+?)\s*\}\}/g;
+    
+      // 使用replace函数与正则表达式进行匹配替换
+      const result = text.replace(regex, (match, group1) => {
+          const trimmedGroup1 = group1.trim();  //去除group1首位的空格 避免替换后placeholder出错
+          return `{{${trimmedGroup1}}}`;
+      });
+    
+      return result;
+    }
+
+    function wrapPlaceholders(text, startTag, endTag) {
+      const regex = /\{\{\s*([^\}]+?)\s*\}\}/g;
+      const result = text.replace(regex, (match, group1) => {
+          const trimmedGroup1 = group1.trim();
+          return `${startTag}{{${trimmedGroup1}}}${endTag}`;
+      });
+    
+      return result;
+    }
+
+    // 构造输入参数列表
+    function buildInputParams(processedTemplate, params) {
+      const paramMatches = processedTemplate.match(/{{([^}}]+)}}/g);
+
+      var paramsKeys = [];
+      if (paramMatches) {
+        paramMatches.forEach(match => {
+          paramsKeys.push(match.slice(2, -2));
+        });
+      }
+
+      var paramList = [];
+      paramsKeys.forEach(key => {
+        var obj = params.find(obj => obj.code === key);
+        if (obj) {
+          paramList.push(obj);
+        } else {
+          paramList.push({code: key, name: key});
+        }
+      });
+      return paramList;
+    }
+
+    // 替换组件区域
+    function replaceFragment(item, match, processedTemplate) {
+      var fullCode = item.fullCode;
+      const fragmentCode = match.slice(2, -2).trim();
+
+      while (true) {
+        fullCode = removeLastCode(fullCode);
+        if (fullCode === '') {
+          return [processedTemplate, []];
+        }
+
+        var fragmentFullCode = fullCode + CODE_SPAN + fragmentCode;
+        if (fragmentMap.hasOwnProperty(fragmentFullCode)) {
+          return [processedTemplate.replace(match, fragmentMap[fragmentFullCode].content), fragmentMap[fragmentFullCode].params || [] ];
+        }
+      }
+      return [processedTemplate, []];
+    }
+
+    // 去除最后一节code
+    function removeLastCode(fullCode) {
+      // 找到最后一个 '.' 的位置
+      const lastDotIndex = fullCode.lastIndexOf(CODE_SPAN);
+      
+      // 如果字符串中存在 '.'
+      if (lastDotIndex !== -1) {
+        // 使用 substring() 方法截取字符串，从索引 0 开始到最后一个 '.' 的位置
+        return fullCode.substring(0, lastDotIndex);
+      }
+      return '';
+    }
+
+
+
+    // 生成结果
+    async function generateResult(itemId) {
+      const item = $(`[id="template-${itemId}"]`).closest('.list-row');
+      const inputs = item.find('input');
+
+      const code = item.find(`#template-${itemId}`);
+
+      let content = code.data('template');
+
+      const clipboardContent = await readClipboard();
+
+      inputs.each(function() {
+        const paramCode = $(this).data('param');
+        var paramValue = $(this).val().trim();
+        if (paramValue === '') {
+          paramValue = clipboardContent;
+        }
+        const placeholder = `{{${paramCode}}}`;
+        content = content.replace(new RegExp(placeholder, 'g'), paramValue);
+      });
+
+      const result = await copyToClipboard(content);
+
+      // 显示生成的SQL
+      if (!result) {
+        showModalMsg('复制内容失败，生成的内容:   ' + content);
+        return;
+      }
+      showModalMsg('复制内容成功，生成的内容:   ' + content);
+    }
+
+    // 全局函数，供HTML调用
+    // window.switchToGroup = switchToGroup;
+    // window.switchToSet = switchToSet;
+    // window.generateResult = generateResult;
+
+    // 从剪贴板中读取内容
+    async function readClipboard() {
+      try {
+        const text = await navigator.clipboard.readText();        
+        return text;
+      } catch (err) {
+        return null;
+      }
+    }
+    // 添加内容到剪贴板中
+    async function copyToClipboard(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch (err) {
+        return false;
+        // 可以使用备选方案，例如 document.execCommand
+      }
+    }
+  </script>
+</body>
+</html> 
