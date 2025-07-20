@@ -4,94 +4,122 @@
     "groups": [
         {
             "name": "SQL构造",
-            "type": "TemplateSeries",
             "code": "SqlSeries",
+            "type": "TemplateSeries",
+            "path": "SqlSeries",
             "groups": [
                 {
-                    "name": "account_db",
+                    "name": "upay_core",
+                    "code": "UpayCore",
                     "type": "TemplateGroup",
-                    "code": "AccountDb",
+                    "path": "SqlSeries-UpayCore",
                     "groups": [
                         {
-                            "name": "account",
+                            "name": "merchant",
+                            "code": "Merchant",
                             "type": "TemplateSet",
-                            "code": "Account",
+                            "path": "SqlSeries-UpayCore-Merchant",
                             "groups": [
                                 {
-                                    "name": "根据id查询账户",
-                                    "type": "TemplateItem",
+                                    "name": "根据Id查询",
                                     "code": "QueryById",
+                                    "type": "TemplateItem",
+                                    "path": "SqlSeries-UpayCore-Merchant-QueryById",
                                     "content": {
-                                        "template": "SELECT * FROM `account` WHERE `id` = '{{id}}';",
-                                        "params": [
-                                            {
-                                                "code": "id",
-                                                "name": "账户ID"
-                                            }
-                                        ]
-                                    }
+                                        "template": "SELECT * FROM `merchant` WHERE `id` = '{{id}}';"
+                                    },
+                                    "groups": []
                                 },
                                 {
-                                    "name": "根据sn查询账户",
-                                    "type": "TemplateItem",
+                                    "name": "根据Sn查询",
                                     "code": "QueryBySn",
+                                    "type": "TemplateItem",
+                                    "path": "SqlSeries-UpayCore-Merchant-QueryBySn",
                                     "content": {
-                                        "template": "SELECT * FROM `account` WHERE `sn` = '{{sn}}';",
-                                        "params": [
-                                            {
-                                                "code": "sn",
-                                                "name": "账户SN"
-                                            }
-                                        ]
-                                    }
+                                        "template": "SELECT * FROM `merchant` WHERE `sn` = '{{sn}}';"
+                                    },
+                                    "groups": []
+                                },
+                                {
+                                    "name": "根据门店Sn查询",
+                                    "code": "QueryByStoreSn",
+                                    "type": "TemplateItem",
+                                    "path": "SqlSeries-UpayCore-Merchant-QueryByStoreSn",
+                                    "content": {
+                                        "template": "SELECT * FROM `merchant` WHERE `id` in ( {#QueryMerchantIdByStoreSn#} );"
+                                    },
+                                    "groups": []
+                                },
+                                {
+                                    "name": "根据终端Sn查询",
+                                    "code": "QueryByTerminalSn",
+                                    "type": "TemplateItem",
+                                    "path": "SqlSeries-UpayCore-Merchant-QueryByTerminalSn",
+                                    "content": {
+                                        "template": "SELECT * FROM `merchant` WHERE `id` in ( {#QueryMerchantIdByTerminalSn#} );"
+                                    },
+                                    "groups": []
                                 }
-                            ]
+                            ],
+                            "fragments": []
                         },
                         {
-                            "name": "account_config",
+                            "name": "merchant_config",
+                            "code": "MerchantConfig",
                             "type": "TemplateSet",
-                            "code": "AccountConfig",
+                            "path": "SqlSeries-UpayCore-MerchantConfig",
                             "groups": [
                                 {
-                                    "name": "根据商户id查询账户配置",
+                                    "name": "根据商户Id查询",
+                                    "code": "QueryById",
                                     "type": "TemplateItem",
-                                    "code": "QueryByAccountId",
+                                    "path": "SqlSeries-UpayCore-MerchantConfig-QueryById",
                                     "content": {
-                                        "template": "SELECT * FROM `account_config` WHERE `account_id` = '{{accountId}}';",
-                                        "params": [
-                                            {
-                                                "code": "accountId",
-                                                "name": "账户ID"
-                                            }
-                                        ]
-                                    }
+                                        "template": "SELECT * FROM `merchant_config` WHERE `merchant_id` = '{{merchantId}}';"
+                                    },
+                                    "groups": []
                                 },
                                 {
-                                    "name": "根据账户SN查询账户配置",
+                                    "name": "根据商户id和payway查询",
+                                    "code": "QueryByIdPayway",
                                     "type": "TemplateItem",
-                                    "code": "QueryByAccountSn",
+                                    "path": "SqlSeries-UpayCore-MerchantConfig-QueryByIdPayway",
                                     "content": {
-                                        "template": "SELECT * FROM `account_config` WHERE `account_id` in ( {# QueryAccountIdByAccountSn #} );"
-                                    }
+                                        "template": "SELECT * FROM `merchant_config` WHERE `merchant_id` = '{{merchantId}}' AND `payway` = {{payway}};"
+                                    },
+                                    "groups": []
+                                },
+                                {
+                                    "name": "根据终端sn查询",
+                                    "code": "QueryByTerminalSn",
+                                    "type": "TemplateItem",
+                                    "path": "SqlSeries-UpayCore-MerchantConfig-QueryByTerminalSn",
+                                    "content": {
+                                        "template": "SELECT * FROM `merchant_config` WHERE `merchant_id` in ( {#QueryMerchantIdByTerminalSn#} );"
+                                    },
+                                    "groups": []
                                 }
-                            ]
+                            ],
+                            "fragments": []
                         }
                     ],
                     "fragments": [
                         {
-                            "name": "根据sn查询账户id",
-                            "code": "QueryAccountIdByAccountSn",
-                            "content": "SELECT `id` FROM `account` WHERE `sn` = '{{accountSn}}'",
-                            "params": [
-                                {
-                                    "code": "accountSn",
-                                    "name": "账户SN"
-                                }
-                            ]
+                            "name": "根据门店sn查询商户id",
+                            "code": "QueryMerchantIdByStoreSn",
+                            "content": "SELECT `merchant_id` FROM `store` WHERE `sn` = {{storeSn}}",
+                            "path": "SqlSeries-UpayCore-QueryMerchantIdByStoreSn"
+                        },
+                        {
+                            "name": "根据终端sn查询商户id",
+                            "code": "QueryMerchantIdByTerminalSn",
+                            "content": "SELECT `merchant_id` FROM `terminal` WHERE `sn` = {{terminalSn}}",
+                            "path": "SqlSeries-UpayCore-QueryMerchantIdByTerminalSn"
                         }
                     ]
                 }
-            ]
+            ],
+            "fragments": []
         }
     ]
 }

@@ -1,0 +1,97 @@
+{
+    "name": "模板定义",
+    "code": "TemplateDefinition",
+    "groups": [
+        {
+            "name": "SQL构造",
+            "type": "TemplateSeries",
+            "code": "SqlSeries",
+            "groups": [
+                {
+                    "name": "account_db",
+                    "type": "TemplateGroup",
+                    "code": "AccountDb",
+                    "groups": [
+                        {
+                            "name": "account",
+                            "type": "TemplateSet",
+                            "code": "Account",
+                            "groups": [
+                                {
+                                    "name": "根据id查询账户",
+                                    "type": "TemplateItem",
+                                    "code": "QueryById",
+                                    "content": {
+                                        "template": "SELECT * FROM `account` WHERE `id` = '{{id}}';",
+                                        "params": [
+                                            {
+                                                "code": "id",
+                                                "name": "账户ID"
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "name": "根据sn查询账户",
+                                    "type": "TemplateItem",
+                                    "code": "QueryBySn",
+                                    "content": {
+                                        "template": "SELECT * FROM `account` WHERE `sn` = '{{sn}}';",
+                                        "params": [
+                                            {
+                                                "code": "sn",
+                                                "name": "账户SN"
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "account_config",
+                            "type": "TemplateSet",
+                            "code": "AccountConfig",
+                            "groups": [
+                                {
+                                    "name": "根据商户id查询账户配置",
+                                    "type": "TemplateItem",
+                                    "code": "QueryByAccountId",
+                                    "content": {
+                                        "template": "SELECT * FROM `account_config` WHERE `account_id` = '{{accountId}}';",
+                                        "params": [
+                                            {
+                                                "code": "accountId",
+                                                "name": "账户ID"
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "name": "根据账户SN查询账户配置",
+                                    "type": "TemplateItem",
+                                    "code": "QueryByAccountSn",
+                                    "content": {
+                                        "template": "SELECT * FROM `account_config` WHERE `account_id` in ( {# QueryAccountIdByAccountSn #} );"
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    "fragments": [
+                        {
+                            "name": "根据sn查询账户id",
+                            "code": "QueryAccountIdByAccountSn",
+                            "content": "SELECT `id` FROM `account` WHERE `sn` = '{{accountSn}}'",
+                            "params": [
+                                {
+                                    "code": "accountSn",
+                                    "name": "账户SN"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
